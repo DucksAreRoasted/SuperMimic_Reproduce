@@ -1,1 +1,1 @@
-# SuperMimic_Reproduce
+# supermimic

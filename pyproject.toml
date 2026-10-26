@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "supermimic"
+version = "0.1.0"
+description = "SuperMimic: one differentiable world model for humanoid whole-body tracking (G1, R1, K1)."
+requires-python = ">=3.10"
+dependencies = ["numpy", "mujoco", "torch", "onnx"]
+
+[project.optional-dependencies]
+data = ["modelscope-hub>=0.5"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
