@@ -1,3 +1,3 @@
-"""SuperMimic training stack for Unitree G1, Unitree R1, and Booster K1."""
+"""SuperMimic reproduction: one differentiable world model + BPTT for humanoid tracking."""
 
 __version__ = "0.1.0"

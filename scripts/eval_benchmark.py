@@ -1,41 +1,40 @@
-"""Score a saved policy on a motion directory."""
+"""Evaluate a checkpoint on every clip of a motion set (paper Appendix F protocol).
+
+  uv run python scripts/eval_benchmark.py --ckpt logs/e2/ckpt_latest.pt --npz-dir data/npz/lafan1
+"""
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 
-import torch
+import tyro
 
-from supermimic.config import TrainConfig
-from supermimic.data.motion import load_directory
-from supermimic.kinematics.fk import KinTree
-from supermimic.policy.networks import Policy
-from supermimic.robots.registry import get_robot
-from supermimic.training.evaluate import evaluate_library
+from supermimic.envs.mdp.motion_library import discover_npz
+from supermimic.robots import get_robot
+from supermimic.eval.benchmark import load_policy_from_checkpoint, run_benchmark, save_results, summarize
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--robot", default="g1", choices=["g1", "r1", "k1"])
-    parser.add_argument("--motions", required=True)
-    parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--hidden", type=int, default=2048)
-    parser.add_argument("--device", default="cpu")
-    args = parser.parse_args()
-    profile, model = get_robot(args.robot)
-    kin = KinTree(model, device=args.device)
-    cfg = TrainConfig()
-    if args.hidden != 2048:
-        cfg.hidden_enc = (args.hidden, args.hidden)
-        cfg.hidden_dec = (args.hidden, args.hidden)
-    goal_dim = cfg.future_frames * profile.goal_frame_dim
-    policy = Policy(profile.obs_dim, goal_dim, profile.n_dof, cfg.history, cfg.latent_dim, cfg.hidden_enc, cfg.hidden_dec)
-    policy.load_state_dict(torch.load(args.checkpoint, map_location=args.device))
-    policy.to(args.device)
-    library = load_directory(Path(args.motions), profile.n_dof)
-    print(evaluate_library(policy, profile, kin, library, torch.device(args.device), cfg.future_frames))
+def main(ckpt: Path, npz_dir: Path | None = None, clips: list[str] | None = None, clip_list: Path | None = None, manifest: Path | None = None, num_envs: int = 1024, device: str = "cuda:0", out: Path | None = None) -> None:
+    if clip_list is not None:
+        clips = [l.strip() for l in open(clip_list) if l.strip()]
+    policy, cfg = load_policy_from_checkpoint(ckpt, device)
+    robot_name = cfg.get("robot", "g1")
+    npz_dir = npz_dir or get_robot(robot_name).default_motion_dir()
+    files = [str(f) for f in discover_npz(npz_dir, names=clips, manifest=manifest)]
+    results = run_benchmark(policy, files, device=device, num_envs=num_envs, future_frames=cfg["env"]["future_frames"], anchor_obs=cfg["env"].get("anchor_obs", False), robot_name=robot_name)
+    s = summarize(results)
+    print(f"\n{s['clips']} clips | failed {s['failed']} | mean norm return {s['mean_norm_return']:.4f} | step-weighted {s['step_weighted_norm_return']:.4f}")
+    if "terms" in s:
+        print("per-step term means (max 0.02 each for the 1.0-weight terms, 0.01 for root terms):")
+        for k, v in s["terms"].items():
+            print(f"  {k:28s} {v:.4f}")
+    worst = sorted(results, key=lambda r: r.norm_return)[:10]
+    for r in worst:
+        print(f"  {r.name:32s} ret {r.norm_return:.3f} steps {r.steps}/{r.frames} {'FAIL@' + str(r.fail_step) if r.failed else ''}")
+    out = out or ckpt.parent / f"benchmark_{ckpt.stem}.json"
+    save_results(results, out)
+    print("saved", out)
 
 
 if __name__ == "__main__":
-    main()
+    tyro.cli(main)

@@ -1,8 +1,0 @@
-Metadata-Version: 2.4
-Name: supermimic
-Version: 0.1.0
-Summary: SuperMimic: one differentiable world model for humanoid whole-body tracking (G1, R1, K1).
-Requires-Python: >=3.10
-Requires-Dist: numpy
-Requires-Dist: mujoco
-Requires-Dist: torch

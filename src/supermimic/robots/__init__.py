@@ -1,4 +1,5 @@
-from supermimic.robots.profile import RobotProfile, apply_length_scales, load_model
-from supermimic.robots.registry import get_robot, all_robots
+"""Robot definitions shared by simulation, learning and evaluation."""
 
-__all__ = ["RobotProfile", "apply_length_scales", "load_model", "get_robot", "all_robots"]
+from .profiles import RobotDimensions, get_robot
+
+__all__ = ["RobotDimensions", "get_robot"]
